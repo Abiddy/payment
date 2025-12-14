@@ -27,7 +27,7 @@ We use a two-phase approach: at payment intent creation, we calculate estimated 
 
 ### 80/20 split applies to points the same as cash tips. Show calculation example.
 
-**Answer:** The 80/20 split applies identically to points as it does to cash tips. The calculation is based on the cash-equivalent value of the points after Stripe fees. For example: User buys 10,000 points ($100), tips 5,000 points ($50) to a streamer. After Stripe fee ($1.75), net is $48.25. Platform gets $9.65 (20%), streamer balance increases by $38.60 (80%).
+**Answer:** From my understanding, the 80/20 split is calculated after we convert points to cash. The process works as follows: (1) Points are first converted to their cash-equivalent value, (2) Stripe fees are deducted from that cash amount, (3) The 80/20 split is then applied to the net amount (after Stripe fees). For example: User tips 5,000 points ($50 cash value) to a streamer. After Stripe fee ($1.75), net is $48.25. Platform gets $9.65 (20%), streamer balance increases by $38.60 (80%).
 
 ```
 5,000 points ($50.00 cash value)
@@ -58,20 +58,22 @@ Point tips create entries in the main `transactions` table with a `source_type` 
 
 ### How do you prevent fraud (users buying points with stolen cards, tipping, then disputing)?
 
-**Answer:** We implement multiple fraud prevention measures:
-
-1. **7-day hold period**: Purchased points are held for 7 days before they can be used for tipping. This allows time for payment disputes to surface.
-
-2. **Identity verification**: For purchases over $100, require identity verification (KYC) before points are activated.
-
-3. **Rate limiting**: Implement rate limiting on point purchases to prevent rapid buy-tip-dispute cycles (e.g., max 3 purchases per hour, max $500 per day per user).
-
-4. **Transaction monitoring**: Flag suspicious patterns (e.g., new account → large purchase → immediate tip → chargeback) for manual review.
-
-5. **Stripe Radar**: Leverage Stripe's built-in fraud detection to flag high-risk transactions before processing.
+**Answer:** Fraud can be managed and litigated in a number of ways, we could implement a 7-day hold period where purchased points are held before they can be used for tipping, allowing time for payment disputes to surface. For purchases over $100, we could require identity verification (KYC) before points are activated. We could also implement rate limiting on point purchases to prevent rapid buy-tip-dispute cycles (e.g., max 3 purchases per hour, max $500 per day per user). Additionally, we could flag suspicious patterns through transaction monitoring (e.g., new account → large purchase → immediate tip → chargeback) for manual review, and leverage Stripe's built-in fraud detection (Stripe Radar) to flag high-risk transactions before processing.
 
 ## 3. Streamer Account Balance Management
 
+We manage streamer balances using three states: **Pending Balance** (tips not yet cleared, held for 7 days for fraud prevention), **Available Balance** (money cleared and ready for payout), and **Paid Out** (money transferred to streamer's bank account). Balances are calculated from the existing `transactions` table by summing `streamer_amount_actual` for succeeded transactions, with pending balance including transactions within the 7-day hold period and available balance including older transactions. We maintain a `streamer_balances` table as a performance cache with fields: `streamer_id`, `pending_balance`, `available_balance`, `total_paid_out`, and `updated_at`. This table is updated in real-time when transactions succeed (via webhook) and when payouts are processed.
+
+In Stripe, we identify streamer transactions using metadata with `streamer_id`, while in our database we use `streamer_id` as the primary identifier. We track payouts in a separate `payouts` table with fields: `payout_id`, `streamer_id`, `amount`, `stripe_payout_id` (links to Stripe's payout record), `status` ('pending', 'paid', 'failed'), `created_at`, and `paid_at`. When a payout is created, we deduct from `available_balance` and create a `payouts` record. When Stripe confirms the payout via webhook, we update the `payouts.status` to 'paid' and add to `total_paid_out`. Both cash tips and point tips contribute to the same balance—point tips convert to cash immediately when tipped (as per our design), and both create entries in the `transactions` table with the same `streamer_id`, so they're aggregated together in the balance calculation.
+
+Streamer balances are displayed in a streamer dashboard showing `pending_balance`, `available_balance`, and payout history. Balances are managed in our database (our source of truth), while Stripe is used for actual payout execution. We reconcile daily by comparing `available_balance + total_paid_out` against Stripe's transfer records, matching `payouts.stripe_payout_id` with Stripe payout objects, and flagging any discrepancies for manual review.
+
 ## 4. Payout System Requirements & Caveats
+
+We use **Stripe Express accounts** for streamers, which provides a streamlined onboarding experience while maintaining platform control. Express accounts allow streamers to complete onboarding directly through Stripe's hosted interface, requiring minimal integration work on our end. The onboarding flow: (1) Streamer requests payout for the first time, (2) We create a Stripe Express account for them, (3) Streamer completes Stripe's hosted onboarding (identity verification, bank account linking), (4) Once verified, payouts are enabled. We chose Express over Standard because it offers faster onboarding and better UX, while Custom accounts would require more compliance overhead and development complexity.
+
+Streamers can withdraw funds on a **weekly basis** with a **minimum threshold of $50**. This policy balances streamer needs for regular access to earnings while reducing processing costs and administrative overhead. The weekly schedule allows funds to accumulate slightly, making payouts more meaningful, while the $50 minimum ensures payout fees are reasonable relative to the amount. As mentioned earlier in section 3, funds move from pending balance (7-day hold period for fraud prevention) to available balance automatically, and only available balance is eligible for payout.
+
+Payout requirements include: (1) **Verified identity** - streamers must complete Stripe's KYC verification during onboarding, (2) **Linked bank account** - required for receiving payouts, (3) **Minimum balance** - $50 available balance threshold, (4) **Holding period complete** - as mentioned in section 2, we implement a 7-day hold period for fraud prevention, so tips must be at least 7 days old to move from pending to available balance. Payouts are blocked if: (1) There are pending disputes or chargebacks on transactions, (2) Available balance is below the $50 minimum threshold, (3) Streamer account is suspended or under review, (4) Identity verification is incomplete or failed, (5) Bank account is not linked or verification failed. We also leverage Stripe Radar (as mentioned in section 2) to flag high-risk transactions that could lead to disputes, which may delay or block payouts until resolved.
 
 ## 5. Technical Implementation
