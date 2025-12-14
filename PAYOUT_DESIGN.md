@@ -23,11 +23,11 @@ We use a two-phase approach: at payment intent creation, we calculate estimated 
 
 ### When do points convert to cash? (Immediately when tipped? Or when a streamer requests payout?)
 
-Points convert to cash **immediately when tipped**. When a user tips a streamer with points, the cash-equivalent value is calculated and the streamer's available balance increases right away. However, the actual funds remain in our Stripe account until the streamer requests a payout. This means: (1) Points → Cash conversion happens at tip time, (2) Streamer balance updates instantly, (3) Physical payout to streamer happens later when they request it.
+**Answer:** Points convert to cash **immediately when tipped**. When a user tips a streamer with points, the cash-equivalent value is calculated and the streamer's available balance increases right away. However, the actual funds remain in our Stripe account until the streamer requests a payout. This means: (1) Points → Cash conversion happens at tip time, (2) Streamer balance updates instantly, (3) Physical payout to streamer happens later when they request it.
 
 ### 80/20 split applies to points the same as cash tips. Show calculation example.
 
-The 80/20 split applies identically to points as it does to cash tips. The calculation is based on the cash-equivalent value of the points after Stripe fees. For example: User buys 10,000 points ($100), tips 5,000 points ($50) to a streamer. After Stripe fee ($1.75), net is $48.25. Platform gets $9.65 (20%), streamer balance increases by $38.60 (80%).
+**Answer:** The 80/20 split applies identically to points as it does to cash tips. The calculation is based on the cash-equivalent value of the points after Stripe fees. For example: User buys 10,000 points ($100), tips 5,000 points ($50) to a streamer. After Stripe fee ($1.75), net is $48.25. Platform gets $9.65 (20%), streamer balance increases by $38.60 (80%).
 
 ```
 5,000 points ($50.00 cash value)
@@ -42,7 +42,7 @@ $48.25 (Net)
 
 ### Database schema: How do you track user point balances, point purchases, point tips, and point-to-cash conversion?
 
-We track points using three main tables:
+**Answer:** We track points using three main tables:
 
 - **`user_points`**: Stores user point balances with fields: `user_id`, `balance` (current available points), `purchased` (total points ever purchased), `spent` (total points ever spent), `created_at`, `updated_at`.
 
@@ -54,11 +54,11 @@ Point tips create entries in the main `transactions` table with a `source_type` 
 
 ### Can users refund unused points? What happens to points already tipped to streamers?
 
-**Unused points** can be refunded within 30 days of purchase if no tips have been made with those points. Once points are tipped to a streamer, they **cannot be refunded** because they've already been converted to cash and added to the streamer's balance. Refund logic: (1) Check if points were used within 30 days, (2) If unused, process refund via Stripe and deduct from `user_points.balance`, (3) If used, refund is denied and user is notified that tips cannot be reversed.
+**Answer:** **Unused points** can be refunded within 30 days of purchase if no tips have been made with those points. Once points are tipped to a streamer, they **cannot be refunded** because they've already been converted to cash and added to the streamer's balance. Refund logic: (1) Check if points were used within 30 days, (2) If unused, process refund via Stripe and deduct from `user_points.balance`, (3) If used, refund is denied and user is notified that tips cannot be reversed.
 
 ### How do you prevent fraud (users buying points with stolen cards, tipping, then disputing)?
 
-We implement multiple fraud prevention measures:
+**Answer:** We implement multiple fraud prevention measures:
 
 1. **7-day hold period**: Purchased points are held for 7 days before they can be used for tipping. This allows time for payment disputes to surface.
 

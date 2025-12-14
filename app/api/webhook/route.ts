@@ -43,6 +43,14 @@ export async function POST(request: NextRequest) {
       const paymentIntentSucceeded = event.data.object as Stripe.PaymentIntent;
       console.log('PaymentIntent succeeded:', paymentIntentSucceeded.id);
       
+      // Check if transaction exists first
+      const existingTransaction = db.getTransactionByPaymentId(paymentIntentSucceeded.id);
+      if (!existingTransaction) {
+        console.warn(`Transaction not found for payment_id: ${paymentIntentSucceeded.id}. This should not happen.`);
+        // Don't create a new transaction here - it should have been created when payment intent was created
+        return NextResponse.json({ received: true, warning: 'Transaction not found' });
+      }
+      
       try {
         // Fetch the actual Stripe fee from the charge/balance transaction
         let actualStripeFee = 0;
@@ -67,18 +75,27 @@ export async function POST(request: NextRequest) {
           }
         }
         
-        // Update transaction with actual fees if we got them, otherwise just update status
+        // Update existing transaction with actual fees if we got them, otherwise just update status
         if (actualStripeFee > 0) {
-          db.updateTransactionWithActualFees(paymentIntentSucceeded.id, actualStripeFee);
+          const updated = db.updateTransactionWithActualFees(paymentIntentSucceeded.id, actualStripeFee);
+          if (!updated) {
+            console.error(`Failed to update transaction for payment_id: ${paymentIntentSucceeded.id}`);
+          }
         } else {
           // Fallback: just update status if we couldn't fetch the fee
           console.warn('Could not fetch actual Stripe fee, using estimated values');
-          db.updateTransaction(paymentIntentSucceeded.id, 'succeeded');
+          const updated = db.updateTransaction(paymentIntentSucceeded.id, 'succeeded');
+          if (!updated) {
+            console.error(`Failed to update transaction status for payment_id: ${paymentIntentSucceeded.id}`);
+          }
         }
       } catch (error: any) {
         console.error('Error fetching Stripe fee:', error.message);
         // Fallback: just update status
-        db.updateTransaction(paymentIntentSucceeded.id, 'succeeded');
+        const updated = db.updateTransaction(paymentIntentSucceeded.id, 'succeeded');
+        if (!updated) {
+          console.error(`Failed to update transaction status for payment_id: ${paymentIntentSucceeded.id}`);
+        }
       }
       break;
 
@@ -86,16 +103,34 @@ export async function POST(request: NextRequest) {
       const paymentIntentFailed = event.data.object as Stripe.PaymentIntent;
       console.log('PaymentIntent failed:', paymentIntentFailed.id);
       
-      // Update transaction status to failed
-      db.updateTransaction(paymentIntentFailed.id, 'failed');
+      // Update existing transaction status to failed (don't create new one)
+      const failedTransaction = db.getTransactionByPaymentId(paymentIntentFailed.id);
+      if (!failedTransaction) {
+        console.warn(`Transaction not found for payment_id: ${paymentIntentFailed.id}`);
+        return NextResponse.json({ received: true, warning: 'Transaction not found' });
+      }
+      
+      const updatedFailed = db.updateTransaction(paymentIntentFailed.id, 'failed');
+      if (!updatedFailed) {
+        console.error(`Failed to update transaction status for payment_id: ${paymentIntentFailed.id}`);
+      }
       break;
 
     case 'payment_intent.canceled':
       const paymentIntentCanceled = event.data.object as Stripe.PaymentIntent;
       console.log('PaymentIntent canceled:', paymentIntentCanceled.id);
       
-      // Update transaction status to canceled
-      db.updateTransaction(paymentIntentCanceled.id, 'canceled');
+      // Update existing transaction status to canceled (don't create new one)
+      const canceledTransaction = db.getTransactionByPaymentId(paymentIntentCanceled.id);
+      if (!canceledTransaction) {
+        console.warn(`Transaction not found for payment_id: ${paymentIntentCanceled.id}`);
+        return NextResponse.json({ received: true, warning: 'Transaction not found' });
+      }
+      
+      const updatedCanceled = db.updateTransaction(paymentIntentCanceled.id, 'canceled');
+      if (!updatedCanceled) {
+        console.error(`Failed to update transaction status for payment_id: ${paymentIntentCanceled.id}`);
+      }
       break;
 
     default:

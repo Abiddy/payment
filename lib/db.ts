@@ -99,8 +99,22 @@ class Database {
     }
   }
 
-  // Create a new transaction
+  // Create a new transaction (or return existing if payment_id already exists)
   createTransaction(transaction: Omit<Transaction, 'id' | 'created_at' | 'updated_at'>): Transaction {
+    // Check if transaction with this payment_id already exists
+    const existingTransaction = this.transactions.find(t => t.payment_id === transaction.payment_id);
+    if (existingTransaction) {
+      // Update existing transaction instead of creating duplicate
+      existingTransaction.status = transaction.status;
+      existingTransaction.updated_at = new Date().toISOString();
+      // Update other fields if provided
+      if (transaction.amount !== undefined) existingTransaction.amount = transaction.amount;
+      if (transaction.streamer_id) existingTransaction.streamer_id = transaction.streamer_id;
+      if (transaction.streamer_name) existingTransaction.streamer_name = transaction.streamer_name;
+      this.saveTransactions();
+      return existingTransaction;
+    }
+
     const newTransaction: Transaction = {
       ...transaction,
       id: `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,

@@ -113,37 +113,6 @@ export default function Dashboard() {
               <p className="text-3xl font-medium text-green-500">{formatCurrency(data.stats.totalStreamerAmount)}</p>
             </div>
           </div>
-
-          {/* Breakdown Visualization */}
-          <div className="bg-[#18181b] border border-[#3a3a3d] rounded-lg p-6 mb-8">
-            <h2 className="text-2xl font-medium text-white mb-4">Revenue Breakdown</h2>
-            <div className="flex items-center gap-4">
-              <div className="flex-1">
-                <div className="flex justify-between mb-2">
-                  <span className="text-sm font-medium text-green-500">Platform (20%)</span>
-                  <span className="text-sm text-[#adadb8] font-light">{formatCurrency(data.stats.totalPlatformFee)}</span>
-                </div>
-                <div className="w-full bg-[#3a3a3d] rounded-full h-4">
-                  <div
-                    className="bg-green-500 h-4 rounded-full"
-                    style={{ width: '20%' }}
-                  ></div>
-                </div>
-              </div>
-              <div className="flex-1">
-                <div className="flex justify-between mb-2">
-                  <span className="text-sm font-medium text-green-500">Streamers (80%)</span>
-                  <span className="text-sm text-[#adadb8] font-light">{formatCurrency(data.stats.totalStreamerAmount)}</span>
-                </div>
-                <div className="w-full bg-[#3a3a3d] rounded-full h-4">
-                  <div
-                    className="bg-green-500 h-4 rounded-full"
-                    style={{ width: '80%' }}
-                  ></div>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Transactions Table */}

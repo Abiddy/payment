@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   PaymentElement,
   useStripe,
@@ -142,9 +142,18 @@ export default function TipModal({
 }: TipModalProps) {
   const [error, setError] = useState<string | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const hasInitialized = useRef(false);
 
-  // Fetch payment intent when modal opens
+  // Fetch payment intent when modal opens (with guard to prevent duplicate calls)
   useEffect(() => {
+    // Prevent multiple calls (e.g., from React Strict Mode)
+    if (hasInitialized.current || clientSecret) {
+      return;
+    }
+
+    hasInitialized.current = true;
+    let isCancelled = false;
+
     fetch('/api/create-payment-intent', {
       method: 'POST',
       headers: {
@@ -157,6 +166,8 @@ export default function TipModal({
     })
       .then(res => res.json())
       .then(data => {
+        if (isCancelled) return;
+        
         if (data.error) {
           setError(data.error);
         } else {
@@ -164,10 +175,16 @@ export default function TipModal({
         }
       })
       .catch(err => {
+        if (isCancelled) return;
         setError('Failed to initialize payment');
         console.error(err);
       });
-  }, [streamerId, amount]);
+
+    // Cleanup function
+    return () => {
+      isCancelled = true;
+    };
+  }, [streamerId, amount, clientSecret]);
 
   if (!clientSecret) {
     return (
