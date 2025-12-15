@@ -2,6 +2,13 @@
 
 A professional, production-ready payment system built with Next.js, TypeScript, and Stripe Test Mode. This platform allows users to tip streamers with automatic 80/20 revenue split (80% to streamer, 20% platform fee).
 
+## Demo
+
+
+https://github.com/user-attachments/assets/0b217b72-5bb0-4a16-87ce-0b1b1094dbaa
+
+
+
 ## 🚀 Features
 
 - **3 Mock Streamers** with tip buttons ($5, $10, $25)
